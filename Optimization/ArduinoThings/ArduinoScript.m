@@ -1,70 +1,64 @@
+% written in C++ here, but in Matlab lol. 
+% I uninstalled my C++ IDE awhile ago so this will do until we actually get the Arduino
+
+// necessary libraries
 #include <Wire.h>
-#include <MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_ADXL345_U.h> // Replace with your specific IMU library
 
-// IMU and Filter Configuration
-MPU6050 imu;
-float b[] = {0.2929, 0.0000, -0.2929}; // Numerator coefficients from MATLAB
-float a[] = {1.0000, -0.5858, 1.0000}; // Denominator coefficients from MATLAB
-float x[] = {0, 0, 0}; // Input signal history
-float y[] = {0, 0, 0}; // Output signal history
 
-float applyBandpassFilter(float input) {
-  x[0] = input;
-  y[0] = b[0]*x[0] + b[1]*x[1] + b[2]*x[2] - a[1]*y[1] - a[2]*y[2];
-  for (int i=2; i>0; i--) {
-    x[i] = x[i-1];
-    y[i] = y[i-1];
-  }
-  return y[0];
-}
+#define OUTPUT_PIN 9 // Pin connected to the electrical stimulator
+#define THRESHOLD 0.1 // Detection threshold
+#define STIMULATION_DURATION 10000 // 10 seconds in milliseconds
 
-// PID Configuration
-float Kp = 1.0, Ki = 0.1, Kd = 0.01; // Replace with optimized parameters from MATLAB
-float integral = 0, previousError = 0;
-unsigned long lastTime = 0;
-
-float computePID(float setpoint, float measurement) {
-  unsigned long now = millis();
-  float deltaTime = (now - lastTime) / 1000.0; // Convert to seconds
-  lastTime = now;
-  
-  float error = setpoint - measurement;
-  integral += error * deltaTime;
-  float derivative = (error - previousError) / deltaTime;
-  previousError = error;
-
-  return (Kp * error) + (Ki * integral) + (Kd * derivative);
-}
-
-// Actuator Control
-int motorPin = 9; // PWM pin connected to the motor driver
+Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345); // replace with your IMU setup
 
 void setup() {
-  Wire.begin();
   Serial.begin(9600);
-  imu.initialize();
-  if (!imu.testConnection()) {
-    Serial.println("IMU connection failed!");
-  while (1);
+  if (!accel.begin()) {
+    Serial.println("No ADXL345 detected ... Check your wiring!");
+    while (1);
   }
-  pinMode(motorPin, OUTPUT);
+  pinMode(OUTPUT_PIN, OUTPUT);
 }
 
 void loop() {
- int16_t ax, ay, az;
- imu.getAcceleration(&ax, &ay, &az);
- float accelerometerData = ax / 16384.0; // Convert to g's assuming ±2g range
+  sensors_event_t event;
+  accel.getEvent(&event);
 
- // Apply band-pass filter
- float filteredData = applyBandpassFilter(accelerometerData);
+  double filteredSignal = bandPassFilter(event.acceleration.x); // Apply filter to the X-axis data
 
- // Compute PID control signal
- float setpoint = 0.0; // Desired value (e.g., stable position)
- float controlSignal = computePID(setpoint, filteredData);
+  if (detectTremor(filteredSignal)) {
+    stimulateMuscle();
+  }
 
- // Output control signal to actuator
- int pwmSignal = constrain(controlSignal + 128, 0, 255);  // Constrain to 8-bit PWM range
- analogWrite(motorPin, pwmSignal);
+  delay(10); // Control loop speed, adjust as needed to match sampling frequency
+}
 
- delay(10); // Adjust delay as needed for your sampling rate
- }
+double bandPassFilter(double input) {
+  static double prevInput[2] = {0.0, 0.0};
+  static double prevOutput[2] = {0.0, 0.0};
+
+  const double a[] = {1.0, -1.5610180758007182, 0.6413515380575631}; // Coefficients for the band-pass filter
+  const double b[] = {0.020083365564211235, 0.0, -0.020083365564211235};
+
+  double output = (input * b[0]) + (prevInput[0] * b[1]) + (prevInput[1] * b[2])
+                - (prevOutput[0] * a[1]) - (prevOutput[1] * a[2]);
+
+  prevInput[1] = prevInput[0];
+  prevInput[0] = input;
+  prevOutput[1] = prevOutput[0];
+  prevOutput[0] = output;
+
+  return output;
+}
+
+bool detectTremor(double signal) {
+  return abs(signal) > THRESHOLD;
+}
+
+void stimulateMuscle() {
+  digitalWrite(OUTPUT_PIN, HIGH); // Turn on the electrical stimulator
+  delay(STIMULATION_DURATION); // Stimulate for 10 seconds
+  digitalWrite(OUTPUT_PIN, LOW); // Turn off the electrical stimulator
+}

@@ -1,133 +1,234 @@
-% Modularized Main Script for TremorZen
-% This script has been revised for proper parameter passing and scoping.
+% Main script for TremorZen device focusing on tremor detection and electrical stimulation
+% Incorporating synthetic data testing, metrics calculation, and F1 score visualization
 
-% Step 1: Sample IMU data (Replace with actual IMU data acquisition)
-imuData = IMU_Processing(); % Add actual implementation for IMU data acquisition
+% Use synthetic data for initial testing
+fs = 100; % Sampling frequency
+t = 0:1/fs:30; % 30 seconds of data for more thorough testing
+tremorFreq = 8; % Example tremor frequency of 8 Hz
+noiseLevel = 0.5; % Amplitude of noise
 
-% Step 2: Process IMU data using a band-pass filter
-fs = 100; % Sampling frequency (ensure this aligns with your IMU sampling rate)
-filteredSignal = IMU_Filter(imuData, fs);
+% Generate synthetic tremor signal with multiple frequencies
+syntheticTremor = sin(2*pi*tremorFreq*t);
+extraFrequencies = sin(2*pi*3*t) + sin(2*pi*15*t) + sin(2*pi*20*t);
+syntheticData = syntheticTremor + extraFrequencies + noiseLevel * randn(size(t));
 
-% Step 3: Optimize PID parameters
-[Kp_opt, Ki_opt, Kd_opt, costHistory] = optimizeParameters(filteredSignal);
-disp(['Optimized PID Parameters: Kp: ', num2str(Kp_opt), ', Ki: ', num2str(Ki_opt), ', Kd: ', num2str(Kd_opt)]);
+% Step 1: Process synthetic data using a band-pass filter
+filteredSyntheticData = IMU_Filter(syntheticData, fs);
 
-% Step 4: Generate control signal with optimized parameters
-optimalControlSignal = PID_Control(filteredSignal, Kp_opt, Ki_opt, Kd_opt);
+% Step 2: Optimize Tremor Detection Parameters using filtered synthetic data
+[threshold_opt, costHistory, f1Scores, thresholds] = optimizeDetectionParameters(filteredSyntheticData, fs);
 
-% Step 5: Visualization and Analysis
-visualizeResults(imuData, filteredSignal, optimalControlSignal, costHistory, fs, Kp_opt, Ki_opt, Kd_opt);
+% Display optimized threshold
+disp(['Optimized Threshold: ', num2str(threshold_opt)]);
 
-% Functions ----------------------------------------------------------------------
-% Function: visualizeResults
-function visualizeResults(imuData, filteredSignal, optimalControlSignal, costHistory, fs, Kp_opt, Ki_opt, Kd_opt)
-    figure;
+% Step 3: Generate and simulate control response with optimized parameters
+[optimalControlSignal, stimulatedSignal] = simulateStimulus(filteredSyntheticData, threshold_opt, fs, t);
 
-    % Plot the raw IMU data and filtered signal
-    subplot(4, 1, 1);
-    plot((1:length(imuData))/fs, imuData, 'DisplayName', 'Raw IMU Data');
-    hold on;
-    plot((1:length(filteredSignal))/fs, filteredSignal, 'DisplayName', 'Filtered Signal (6-12 Hz)');
-    title('Raw IMU Data and Filtered Signal');
-    xlabel('Time (s)');
-    ylabel('Amplitude');
-    legend('show');
-    hold off;
+% Step 4: Validate tremor detection on synthetic data
+groundTruth = abs(syntheticTremor) > 0.1; % Ground truth for synthetic tremor (tremor threshold=0.1)
+detections = abs(filteredSyntheticData) > threshold_opt; % Tremor detections with optimized threshold
 
-    % FFT Analysis: Plot the frequency content of the raw IMU data
-    subplot(4, 1, 2);
-    fft_plot(imuData, fs, 'Raw IMU Data FFT');
+% Calculate performance metrics
+TP = sum(detections == 1 & groundTruth == 1);
+FP = sum(detections == 1 & groundTruth == 0);
+TN = sum(detections == 0 & groundTruth == 0);
+FN = sum(detections == 0 & groundTruth == 1);
 
-    % FFT Analysis: Plot the frequency content of the filtered signal
-    subplot(4, 1, 3);
-    fft_plot(filteredSignal, fs, 'Filtered Signal FFT');
+accuracy = (TP + TN) / (TP + FP + TN + FN);
+precision = TP / (TP + FP);
+recall = TP / (TP + FN);
+f1_score = 2 * (precision * recall) / (precision + recall);
 
-    % Plot the optimized control signal
-    subplot(4, 1, 4);
-    plot((1:length(optimalControlSignal))/fs, optimalControlSignal);
-    title('Optimized Control Signal');
-    xlabel('Time (s)');
-    ylabel('Control Signal Amplitude');
+disp(['Accuracy: ', num2str(accuracy)]);
+disp(['Precision: ', num2str(precision)]);
+disp(['Recall: ', num2str(recall)]);
+disp(['F1 Score: ', num2str(f1_score)]);
 
-    % Plot the cost function history
-    figure;
-    plot(costHistory, '-o');
-    title('Cost Function Value During Optimization');
-    xlabel('Iteration');
-    ylabel('Cost Function Value');
+% Step 5: Plot the results
 
-    % Additional Modeling and Analysis
-    pidController = pid(Kp_opt, Ki_opt, Kd_opt);
-    visualizeFurtherAnalysis(pidController, fs, Kp_opt, Ki_opt, Kd_opt);
+% Plot the raw and filtered synthetic data for comparison
+figure;
+subplot(2, 1, 1);
+plot(t, syntheticData, 'DisplayName', 'Raw Synthetic Data');
+hold on;
+plot(t, syntheticTremor, 'DisplayName', 'Ground Truth Tremor (8 Hz)');
+title('Raw Synthetic Data with Multiple Frequencies');
+xlabel('Time (s)');
+ylabel('Amplitude');
+legend('show');
+grid on;
+hold off;
+
+subplot(2, 1, 2);
+plot(t, filteredSyntheticData, 'DisplayName', 'Filtered Data (6-12 Hz)');
+title('Filtered Synthetic Data');
+xlabel('Time (s)');
+ylabel('Amplitude');
+legend('show');
+grid on;
+
+% FFT Analysis: Compare the frequency content
+figure;
+subplot(2, 1, 1);
+fft_plot(syntheticData, fs, 'Raw Synthetic Data FFT');
+
+subplot(2, 1, 2);
+fft_plot(filteredSyntheticData, fs, 'Filtered Synthetic Data FFT');
+
+% Plot the cost function history
+figure;
+plot(costHistory, '-o');
+title('Cost Function Value During Optimization');
+xlabel('Iteration');
+ylabel('Cost Function Value');
+grid on;
+
+% Plot the F1 score across different thresholds
+figure;
+plot(thresholds, f1Scores, '-o');
+title('F1 Score vs. Threshold');
+xlabel('Threshold');
+ylabel('F1 Score');
+grid on;
+
+% Plot the optimized control signal and stimulated response
+figure;
+subplot(2, 1, 1);
+plot((1:length(optimalControlSignal))/fs, optimalControlSignal, 'DisplayName', 'Control Signal');
+title('Optimized Control Signal');
+xlabel('Time (s)');
+ylabel('Control Signal Amplitude');
+legend('show');
+grid on;
+
+subplot(2, 1, 2);
+plot((1:length(stimulatedSignal))/fs, stimulatedSignal, 'DisplayName', 'Stimulated Signal');
+title('Electrical Stimulation Response');
+xlabel('Time (s)');
+ylabel('Electrical Stimulus Amplitude');
+legend('show');
+grid on;
+
+% Plot the tremor detections
+figure;
+subplot(2, 1, 1);
+plot(t, syntheticData, 'DisplayName', 'Synthetic Data');
+hold on;
+plot(t, filteredSyntheticData, 'DisplayName', 'Filtered Data');
+title('Synthetic IMU Data');
+xlabel('Time (s)');
+ylabel('Amplitude');
+legend('show');
+grid on;
+hold off;
+
+subplot(2, 1, 2);
+plot(t, detections, 'DisplayName', 'Detections');
+title('Tremor Detections');
+xlabel('Time (s)');
+ylabel('Detection (0 or 1)');
+legend('show');
+grid on;
+
+%% Placeholder Functions
+
+% Placeholder function for generating synthetic IMU data
+function imuData = IMU_Processing()
+    % Simulate IMU data with more noise and additional frequency components
+    fs = 100; % Sampling frequency in Hz
+    t = 0:1/fs:10; % 10 seconds of data
+    noise = 0.5 * randn(size(t)); % Increased random noise
+    tremorSignal = sin(2*pi*8*t); % Primary tremor signal at 8 Hz
+    additionalSignal = sin(2*pi*15*t) + sin(2*pi*3*t); % Additional frequencies (3 Hz, 15 Hz)
+    imuData = tremorSignal + noise + additionalSignal; % Combined signal
 end
 
-% Function: visualizeFurtherAnalysis
-function visualizeFurtherAnalysis(pidController, fs, Kp_opt, Ki_opt, Kd_opt)
-    % Estimated Parameters for Mass-Spring-Damper System
-    m = 0.5; % Mass (kg)
-    b = 2.0; % Damping Coefficient (N·s/m)
-    k = 20.0; % Spring Constant (N/m)
-
-    % Define the Transfer Function for the Mass-Spring-Damper System
-    s = tf('s');
-    G = 1 / (m * s^2 + b * s + k);
-
-    % Closed-loop system
-    closedLoopSystem = feedback(pidController * G, 1);
-
-    % Bode plot
-    figure;
-    bode(closedLoopSystem);
-    title('Bode Plot of the Closed-Loop System');
-
-    % Nyquist plot
-    figure;
-    nyquist(pidController * G);
-    title('Nyquist Plot of the Open-Loop System');
-
-    % Root Locus plot
-    figure;
-    rlocus(pidController * G);
-    title('Root Locus of the Open-Loop System');
-
-    % Step response
-    figure;
-    step(closedLoopSystem);
-    title('Step Response of the Closed-Loop System');
-
-    % Custom Simulation of Control Signal Accuracy and Device Stability
-    simulationTime = 10; % Simulation time in seconds
-    simulateDeviceResponse(closedLoopSystem, fs, simulationTime, Kp_opt, Ki_opt, Kd_opt);
+% Placeholder function for band-pass filter
+function filtered = IMU_Filter(data, fs)
+    % Band-pass filter between 6-12 Hz
+    f_low = 6;
+    f_high = 12;
+    [b, a] = butter(2, [f_low, f_high] / (fs / 2), 'bandpass');
+    filtered = filtfilt(b, a, data);
 end
 
-% Function: simulateDeviceResponse
-function simulateDeviceResponse(closedLoopSystem, fs, simulationTime, Kp_opt, Ki_opt, Kd_opt)
-    % Use the parameters effectively within the function
-    t = 0:1/fs:simulationTime;
-    noise = 0.5 * randn(size(t)); % Random noise
-    tremorSignal = sin(2*pi*8*t); % Example tremor signal at 8 Hz
-    imuData = tremorSignal + noise;
+% Function for Optimization of Detection Parameters
+function [threshold_opt, costHistory, f1Scores, thresholds] = optimizeDetectionParameters(signal, fs)
+    % Define the range for threshold values to search
+    thresholds = linspace(0.01, 1, 100);
+    costHistory = zeros(size(thresholds));
+    f1Scores = zeros(size(thresholds));
+    
+    % Generate ground truth for the synthetic signal
+    groundTruth = abs(signal) > 0.1; % Use threshold=0.1 for synthetic ground truth
+    
+    % Iterate over each threshold and compute the cost and F1 score
+    for i = 1:length(thresholds)
+        threshold = thresholds(i);
+        detections = abs(signal) > threshold;
+        [f1, cost] = evaluatePerformance(groundTruth, detections);
+        costHistory(i) = cost;
+        f1Scores(i) = f1;
+    end
+    
+    % Find the threshold that maximizes the F1 score
+    [~, idx] = max(f1Scores);
+    threshold_opt = thresholds(idx);
+end
 
-    % Apply the band-pass filter
-    filteredSignal = IMU_Filter(imuData, fs);
+% Function to Evaluate Performance and Cost for Given Detections
+function [f1_score, cost] = evaluatePerformance(groundTruth, detections)
+    % Calculate performance metrics
+    TP = sum(detections == 1 & groundTruth == 1);
+    FP = sum(detections == 1 & groundTruth == 0);
+    TN = sum(detections == 0 & groundTruth == 0);
+    FN = sum(detections == 0 & groundTruth == 1);
+    
+    precision = TP / (TP + FP);
+    recall = TP / (TP + FN);
+    f1_score = 2 * (precision * recall) / (precision + recall);
+    
+    % Calculate cost as the negative of F1 score
+    cost = -f1_score;
+end
 
-    % Generate optimized control signal
-    optimalControlSignal = PID_Control(filteredSignal, Kp_opt, Ki_opt, Kd_opt);
+% Function to Simulate the Stimulus Based on Detection Parameters
+function [controlSignal, stimulatedSignal] = simulateStimulus(signal, threshold, fs, t)
+    % Generate binary control signal based on threshold detection
+    controlSignal = abs(signal) > threshold;
+    
+    % Initialize stimulated signal
+    stimulatedSignal = zeros(size(controlSignal));
+    
+    % Duration of stimulation in seconds
+    stimulationDuration = 10;
+    
+    % Apply electrical stimulation for fixed duration after tremor detection
+    stimulationSamples = round(stimulationDuration * fs);
+    for i = 1:length(controlSignal)
+        if controlSignal(i) == 1
+            endIdx = min(i + stimulationSamples - 1, length(controlSignal));
+            stimulatedSignal(i:endIdx) = 1;  % Apply stimulation
+        end
+    end
+    
+    % Modulate the control signal with the detected tremor signal
+    stimulatedSignal = stimulatedSignal .* signal;
+end
 
-    % Define the simulation of the device's response
-    deviceResponse = lsim(closedLoopSystem, optimalControlSignal, t);
+% Function to Plot FFT Analysis
+function fft_plot(signal, fs, plotTitle)
+    L = length(signal); % Length of signal
+    Y = fft(signal); % Compute the FFT
+    P2 = abs(Y/L); % Two-sided spectrum
+    P1 = P2(1:floor(L/2)+1); % Single-sided spectrum
+    P1(2:end-1) = 2*P1(2:end-1);
+    f = fs*(0:(floor(L/2)))/L; % Frequency axis
 
-    % Plot the optimized control signal and device response
-    figure;
-    subplot(2, 1, 1);
-    plot(t, optimalControlSignal);
-    title('Optimized Control Signal');
-    xlabel('Time (s)');
-    ylabel('Control Signal Amplitude');
-
-    subplot(2, 1, 2);
-    plot(t, deviceResponse);
-    title('Device Response to Control Signal');
-    xlabel('Time (s)');
-    ylabel('Device Response Amplitude');
+    plot(f, P1);
+    title(plotTitle);
+    xlabel('Frequency (Hz)');
+    ylabel('|Amplitude|');
+    xlim([0 20]); % Focus on the frequency range of interest
+    grid on;
 end
