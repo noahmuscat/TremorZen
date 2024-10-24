@@ -1,17 +1,16 @@
-% written in C++ here, but in Matlab lol. 
-% I uninstalled my C++ IDE awhile ago so this will do until we actually get the Arduino
+#include "arduino_secrets.h"
 
 // necessary libraries
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
-#include <Adafruit_ADXL345_U.h> // Replace with your specific IMU library
+#include <Adafruit_ADXL345_U.h> // Replace with specific IMU library
 
 
 #define OUTPUT_PIN 9 // Pin connected to the electrical stimulator
 #define THRESHOLD 0.1 // Detection threshold
 #define STIMULATION_DURATION 10000 // 10 seconds in milliseconds
 
-Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345); // replace with your IMU setup
+Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345); // replace with IMU setup
 
 void setup() {
   Serial.begin(9600);
