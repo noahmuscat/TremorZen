@@ -1,16 +1,18 @@
 % Main script for TremorZen device focusing on tremor detection and electrical stimulation
-% Incorporating synthetic data testing, metrics calculation, and F1 score visualization
+% Incorporating synthetic data testing, metrics calculation, F1 score visualization, and figure saving
 
 % Use synthetic data for initial testing
-fs = 100; % Sampling frequency
+fs = 100; % Sampling frequency, Hz
 t = 0:1/fs:30; % 30 seconds of data for more thorough testing
-tremorFreq = 8; % Example tremor frequency of 8 Hz
+tremorFreq = 8; % Example tremor frequency, Hz
 noiseLevel = 0.5; % Amplitude of noise
 
 % Generate synthetic tremor signal with multiple frequencies
 syntheticTremor = sin(2*pi*tremorFreq*t);
 extraFrequencies = sin(2*pi*3*t) + sin(2*pi*15*t) + sin(2*pi*20*t);
-syntheticData = syntheticTremor + extraFrequencies + noiseLevel * randn(size(t));
+noise = noiseLevel *randn(size(t));
+allFreq = syntheticTremor + extraFrequencies;
+syntheticData = allFreq + noise; 
 
 % Step 1: Process synthetic data using a band-pass filter
 filteredSyntheticData = IMU_Filter(syntheticData, fs);
@@ -29,24 +31,25 @@ groundTruth = abs(syntheticTremor) > 0.1; % Ground truth for synthetic tremor (t
 detections = abs(filteredSyntheticData) > threshold_opt; % Tremor detections with optimized threshold
 
 % Calculate performance metrics
-TP = sum(detections == 1 & groundTruth == 1);
-FP = sum(detections == 1 & groundTruth == 0);
-TN = sum(detections == 0 & groundTruth == 0);
-FN = sum(detections == 0 & groundTruth == 1);
+TP = sum(detections == 1 & groundTruth == 1); % True Positives
+FP = sum(detections == 1 & groundTruth == 0); % False Positives
+TN = sum(detections == 0 & groundTruth == 0); % True Negatives
+FN = sum(detections == 0 & groundTruth == 1); % False Negatives
 
-accuracy = (TP + TN) / (TP + FP + TN + FN);
-precision = TP / (TP + FP);
-recall = TP / (TP + FN);
-f1_score = 2 * (precision * recall) / (precision + recall);
+accuracy = (TP + TN) / (TP + FP + TN + FN); % Accuracy
+precision = TP / (TP + FP); % Precision
+recall = TP / (TP + FN); % Recall
+f1_score = 2 * (precision * recall) / (precision + recall); % F1 Score
 
+% Display performance metrics
 disp(['Accuracy: ', num2str(accuracy)]);
 disp(['Precision: ', num2str(precision)]);
 disp(['Recall: ', num2str(recall)]);
 disp(['F1 Score: ', num2str(f1_score)]);
 
-% Step 5: Plot the results
+% Step 5: Plot and Save the results
 
-% Plot the raw and filtered synthetic data for comparison
+% Plot and save the raw and filtered synthetic data for comparison
 figure;
 subplot(2, 1, 1);
 plot(t, syntheticData, 'DisplayName', 'Raw Synthetic Data');
@@ -58,6 +61,7 @@ ylabel('Amplitude');
 legend('show');
 grid on;
 hold off;
+%saveas(gcf, 'Raw_and_GroundTruth_SyntheticData.png'); % Save figure
 
 subplot(2, 1, 2);
 plot(t, filteredSyntheticData, 'DisplayName', 'Filtered Data (6-12 Hz)');
@@ -66,32 +70,37 @@ xlabel('Time (s)');
 ylabel('Amplitude');
 legend('show');
 grid on;
+%saveas(gcf, 'Filtered_SyntheticData.png'); % Save figure
 
-% FFT Analysis: Compare the frequency content
+% FFT Analysis: Compare the frequency content and save
 figure;
 subplot(2, 1, 1);
 fft_plot(syntheticData, fs, 'Raw Synthetic Data FFT');
+%saveas(gcf, 'Raw_SyntheticData_FFT.png'); % Save figure
 
 subplot(2, 1, 2);
 fft_plot(filteredSyntheticData, fs, 'Filtered Synthetic Data FFT');
+%saveas(gcf, 'Filtered_SyntheticData_FFT.png'); % Save figure
 
-% Plot the cost function history
+% Plot and save the cost function history
 figure;
 plot(costHistory, '-o');
 title('Cost Function Value During Optimization');
 xlabel('Iteration');
 ylabel('Cost Function Value');
 grid on;
+%saveas(gcf, 'Cost_Function_History.png'); % Save figure
 
-% Plot the F1 score across different thresholds
+% Plot and save the F1 score across different thresholds
 figure;
 plot(thresholds, f1Scores, '-o');
 title('F1 Score vs. Threshold');
 xlabel('Threshold');
 ylabel('F1 Score');
 grid on;
+%saveas(gcf, 'F1_Score_vs_Threshold.png'); % Save figure
 
-% Plot the optimized control signal and stimulated response
+% Plot and save the optimized control signal and stimulated response
 figure;
 subplot(2, 1, 1);
 plot((1:length(optimalControlSignal))/fs, optimalControlSignal, 'DisplayName', 'Control Signal');
@@ -108,8 +117,9 @@ xlabel('Time (s)');
 ylabel('Electrical Stimulus Amplitude');
 legend('show');
 grid on;
+%saveas(gcf, 'Optimized_Control_and_Stimulated_Signal.png'); % Save figure
 
-% Plot the tremor detections
+% Plot and save the tremor detections
 figure;
 subplot(2, 1, 1);
 plot(t, syntheticData, 'DisplayName', 'Synthetic Data');
@@ -129,6 +139,7 @@ xlabel('Time (s)');
 ylabel('Detection (0 or 1)');
 legend('show');
 grid on;
+%saveas(gcf, 'Tremor_Detections.png'); % Save figure
 
 %% Placeholder Functions
 
@@ -143,7 +154,7 @@ function imuData = IMU_Processing()
     imuData = tremorSignal + noise + additionalSignal; % Combined signal
 end
 
-% Placeholder function for band-pass filter
+% Function for band-pass filter
 function filtered = IMU_Filter(data, fs)
     % Band-pass filter between 6-12 Hz
     f_low = 6;
