@@ -159,7 +159,8 @@ function filtered = IMU_Filter(data, fs)
     % Band-pass filter between 6-12 Hz
     f_low = 6;
     f_high = 12;
-    [b, a] = butter(2, [f_low, f_high] / (fs / 2), 'bandpass');
+    order = 4; % Increased filter order
+    [b, a] = butter(order, [f_low, f_high] / (fs / 2), 'bandpass');
     filtered = filtfilt(b, a, data);
 end
 

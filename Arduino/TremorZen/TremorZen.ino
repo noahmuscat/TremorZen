@@ -1,63 +1,131 @@
-#include "arduino_secrets.h"
+#include <Arduino_LSM9DS1.h>
+#include <arm_math.h>
 
-// necessary libraries
-#include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_ADXL345_U.h> // Replace with specific IMU library
+// Define filter order and coefficients (replace with actual coefficients from MATLAB)
+#define FILTER_ORDER 4
 
+// Example filter coefficients (must be replaced with your actual coefficients)
+float b[] = {0.00080636, 0, -0.00322544, 0, 0.00483816, 0, -0.00322544, 0, 0.00080636, };
+float a[] = {1, -6.03196, 16.7302, -27.7277, 29.9741, -21.6263, 10.1777, -2.86301, 0.370814, };
 
-#define OUTPUT_PIN 9 // Pin connected to the electrical stimulator
-#define THRESHOLD 0.1 // Detection threshold
-#define STIMULATION_DURATION 10000 // 10 seconds in milliseconds
+// Initialize IIR filter structures for "B" and "A" coefficients
+arm_biquad_casd_df1_inst_f32 Sx, Sy, Sz;
+float stateBx[4 * FILTER_ORDER];
+float stateBy[4 * FILTER_ORDER];
+float stateBz[4 * FILTER_ORDER];
 
-Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345); // replace with IMU setup
+// Control system timing constants
+const unsigned long RECORDING_DURATION = 1000;    // Record for 1 second
+const unsigned long STIMULATION_DURATION = 2000;  // Stimulate for 2 seconds
+
+// Variables to track timing and system state
+unsigned long previousMillis = 0;   // Stores the last time the state was changed
+bool isRecordingPhase = true;       // Tracks whether we are in recording or stimulation phase
+
+// Variables for tremor detection
+bool tremorDetected = false;
+unsigned long tremorDetectionTime = 0;   // Time when tremor is detected
+
+// Stimulation parameters
+const int STIMULATION_PIN = 9;         // Specify appropriate digital pin for electrodes
+const float PULSE_WIDTH = 400;         // in microseconds
+const int STIMULATION_CURRENT = 10;    // in mA (you might need to adjust this)
+const int STIMULATION_FREQUENCY = 100; // Hz
 
 void setup() {
-  Serial.begin(9600);
-  if (!accel.begin()) {
-    Serial.println("No ADXL345 detected ... Check your wiring!");
+  Serial.begin(115200);
+  while (!Serial) {}
+
+  // Initialize IMU
+  if (!IMU.begin()) {
+    Serial.println("Failed to initialize IMU!");
     while (1);
   }
-  pinMode(OUTPUT_PIN, OUTPUT);
+  Serial.println("IMU Initialized.");
+
+  // Initialize Biquad cascade filter with coefficients for each axis
+  arm_biquad_cascade_df1_init_f32(&Sx, FILTER_ORDER / 2, b, stateBx);
+  arm_biquad_cascade_df1_init_f32(&Sy, FILTER_ORDER / 2, b, stateBy);
+  arm_biquad_cascade_df1_init_f32(&Sz, FILTER_ORDER / 2, b, stateBz);
+
+  // Set stimulation pin as output
+  pinMode(STIMULATION_PIN, OUTPUT);
 }
 
 void loop() {
-  sensors_event_t event;
-  accel.getEvent(&event);
+  unsigned long currentMillis = millis();
+  
+  if (isRecordingPhase) {
+    // Check if it's time to switch to stimulation phase
+    if (currentMillis - previousMillis >= RECORDING_DURATION) {
+      previousMillis = currentMillis;
+      isRecordingPhase = false; // Switch to stimulation phase
+    }
 
-  double filteredSignal = bandPassFilter(event.acceleration.x); // Apply filter to the X-axis data
+    // Perform recording phase tasks
+    if (IMU.accelerationAvailable()) {
+      float ax, ay, az;
+      IMU.readAcceleration(ax, ay, az);
 
-  if (detectTremor(filteredSignal)) {
-    stimulateMuscle();
+      // Apply the band-pass filter to the x, y, and z-axis data
+      float filtered_value_x, filtered_value_y, filtered_value_z;
+      arm_biquad_cascade_df1_f32(&Sx, &ax, &filtered_value_x, 1);
+      arm_biquad_cascade_df1_f32(&Sy, &ay, &filtered_value_y, 1);
+      arm_biquad_cascade_df1_f32(&Sz, &az, &filtered_value_z, 1);
+
+      // Combine filtered values
+      float combined_filtered_value = sqrt(filtered_value_x * filtered_value_x +
+                                           filtered_value_y * filtered_value_y +
+                                           filtered_value_z * filtered_value_z);
+
+      // Store or process data if needed
+      Serial.print("Recorded data: ");
+      Serial.println(combined_filtered_value);
+
+      // Tremor detection
+      if (detectTremor(combined_filtered_value)) {
+        tremorDetected = true;
+        tremorDetectionTime = currentMillis;
+        Serial.println("Tremor Detected!");
+      }
+    }
+
+  } else { // Stimulation phase
+    // Check if it's time to switch back to recording phase
+    if (currentMillis - previousMillis >= STIMULATION_DURATION) {
+      previousMillis = currentMillis;
+      isRecordingPhase = true;  // Switch to recording phase
+      return; // Ensuring that no more stimulation happens in the same loop pass
+    }
+
+    // Perform stimulation phase tasks
+    if (tremorDetected) {
+      // Calculate time elapsed since tremor was detected
+      unsigned long timeSinceDetection = currentMillis - tremorDetectionTime;
+      // Handle stimulation timing here, for simplicity, immediately stimulate
+      applyStimulus();
+      tremorDetected = false; // Reset tremor detection flag
+    }
   }
-
-  delay(10); // Control loop speed, adjust as needed to match sampling frequency
 }
 
-double bandPassFilter(double input) {
-  static double prevInput[2] = {0.0, 0.0};
-  static double prevOutput[2] = {0.0, 0.0};
-
-  const double a[] = {1.0, -1.5610180758007182, 0.6413515380575631}; // Coefficients for the band-pass filter
-  const double b[] = {0.020083365564211235, 0.0, -0.020083365564211235};
-
-  double output = (input * b[0]) + (prevInput[0] * b[1]) + (prevInput[1] * b[2])
-                - (prevOutput[0] * a[1]) - (prevOutput[1] * a[2]);
-
-  prevInput[1] = prevInput[0];
-  prevInput[0] = input;
-  prevOutput[1] = prevOutput[0];
-  prevOutput[0] = output;
-
-  return output;
+bool detectTremor(float filtered_value) {
+  const float TREMOR_THRESHOLD = 1.0; // Define an appropriate threshold for tremor
+  return (abs(filtered_value) > TREMOR_THRESHOLD);
 }
 
-bool detectTremor(double signal) {
-  return abs(signal) > THRESHOLD;
+void applyPulse(int pin) {
+  // Generate a PWM signal for the specified pulse width
+  analogWrite(pin, map(STIMULATION_CURRENT, 0, 20, 0, 255)); // Map current to PWM range
+  delayMicroseconds(PULSE_WIDTH);
+  analogWrite(pin, 0); // Turn off the pin
 }
 
-void stimulateMuscle() {
-  digitalWrite(OUTPUT_PIN, HIGH); // Turn on the electrical stimulator
-  delay(STIMULATION_DURATION); // Stimulate for 10 seconds
-  digitalWrite(OUTPUT_PIN, LOW); // Turn off the electrical stimulator
+void applyStimulus() {
+  // Apply stimulation pulses for the duration of the stimulation phase
+  unsigned long startTime = millis();
+  while (millis() - startTime < STIMULATION_DURATION) {
+    applyPulse(STIMULATION_PIN);
+    delay(1000 / STIMULATION_FREQUENCY); // Delay to achieve desired frequency
+  }
 }
