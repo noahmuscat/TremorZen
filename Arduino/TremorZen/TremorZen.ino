@@ -5,8 +5,8 @@
 #define FILTER_ORDER 4
 
 // Optimized Band Pass Filter coefficients
-float b[] = {0.00080636, 0, -0.00322544, 0, 0.00483816, 0, -0.00322544, 0, 0.00080636, };
-float a[] = {1, -6.03196, 16.7302, -27.7277, 29.9741, -21.6263, 10.1777, -2.86301, 0.370814, };
+float b[] = {0.00080636, 0, -0.00322544, 0, 0.00483816, 0, -0.00322544, 0, 0.00080636};
+float a[] = {1, -6.03196, 16.7302, -27.7277, 29.9741, -21.6263, 10.1777, -2.86301, 0.370814};
 
 // Initialize IIR filter structures for "B" and "A" coefficients
 arm_biquad_casd_df1_inst_f32 Sx, Sy, Sz;
@@ -27,7 +27,7 @@ bool tremorDetected = false;
 unsigned long tremorDetectionTime = 0;   // Time when tremor is detected
 
 // Stimulation parameters
-const int STIMULATION_PIN = 9;         // Specify appropriate digital pin for electrodes
+const int STIMULATION_PINS[] = {9, 10, 11, 12}; // Pins for the four electrodes
 const float PULSE_WIDTH = 400;         // in microseconds
 const int STIMULATION_CURRENT = 10;    // in mA (you might need to adjust this)
 const int STIMULATION_FREQUENCY = 100; // Hz
@@ -48,8 +48,10 @@ void setup() {
   arm_biquad_cascade_df1_init_f32(&Sy, FILTER_ORDER / 2, b, stateBy);
   arm_biquad_cascade_df1_init_f32(&Sz, FILTER_ORDER / 2, b, stateBz);
 
-  // Set stimulation pin as output
-  pinMode(STIMULATION_PIN, OUTPUT);
+  // Set stimulation pins as output
+  for (int i = 0; i < 4; i++) {
+    pinMode(STIMULATION_PINS[i], OUTPUT);
+  }
 }
 
 void loop() {
@@ -125,7 +127,9 @@ void applyStimulus() {
   // Apply stimulation pulses for the duration of the stimulation phase
   unsigned long startTime = millis();
   while (millis() - startTime < STIMULATION_DURATION) {
-    applyPulse(STIMULATION_PIN);
+    for (int i = 0; i < 4; i++) {
+      applyPulse(STIMULATION_PINS[i]);
+    }
     delay(1000 / STIMULATION_FREQUENCY); // Delay to achieve desired frequency
   }
 }
