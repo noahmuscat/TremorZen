@@ -5,8 +5,8 @@
 #define FILTER_ORDER 4
 
 // Optimized Band Pass Filter coefficients
-float b[] = {0.00080636, 0, -0.00322544, 0, 0.00483816, 0, -0.00322544, 0, 0.00080636};
-float a[] = {1, -6.03196, 16.7302, -27.7277, 29.9741, -21.6263, 10.1777, -2.86301, 0.370814};
+float b[] = {0.00080636, 0, -0.00322544, 0, 0.00483816, 0, -0.00322544, 0, 0.00080636, };
+float a[] = {1, -6.03196, 16.7302, -27.7277, 29.9741, -21.6263, 10.1777, -2.86301, 0.370814, };
 
 // Initialize IIR filter structures for "B" and "A" coefficients
 arm_biquad_casd_df1_inst_f32 Sx, Sy, Sz;
