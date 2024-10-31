@@ -1,10 +1,10 @@
 #include <Arduino_LSM9DS1.h>
 #include <arm_math.h>
 
-// Define filter order and coefficients (replace with actual coefficients from MATLAB)
+// Define filter order and coefficients
 #define FILTER_ORDER 4
 
-// Example filter coefficients (must be replaced with your actual coefficients)
+// Optimized Band Pass Filter coefficients
 float b[] = {0.00080636, 0, -0.00322544, 0, 0.00483816, 0, -0.00322544, 0, 0.00080636, };
 float a[] = {1, -6.03196, 16.7302, -27.7277, 29.9741, -21.6263, 10.1777, -2.86301, 0.370814, };
 
