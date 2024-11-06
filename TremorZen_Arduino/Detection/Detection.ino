@@ -1,14 +1,13 @@
-#include "arduino_secrets.h"
-
 #include <Arduino_LSM9DS1.h>
+#include "Arduino_BMI270_BMM150.h"
 #include <arm_math.h>
 
 // Define filter order and coefficients
 #define FILTER_ORDER 4
 
 // Optimized Band Pass Filter coefficients
-float b[] = {0.00080636, 0, -0.00322544, 0, 0.00483816, 0, -0.00322544, 0, 0.00080636, };
-float a[] = {1, -6.03196, 16.7302, -27.7277, 29.9741, -21.6263, 10.1777, -2.86301, 0.370814, };
+float b[] = {0.00080636, 0, -0.00322544, 0, 0.00483816, 0, -0.00322544, 0, 0.00080636};
+float a[] = {1, -6.03196, 16.7302, -27.7277, 29.9741, -21.6263, 10.1777, -2.86301, 0.370814};
 
 // Initialize IIR filter structures
 arm_biquad_casd_df1_inst_f32 Sx, Sy, Sz;
@@ -24,10 +23,13 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) {}
 
+  // Add a small delay before initializing IMU
+  delay(500);
+
   // Initialize IMU
   if (!IMU.begin()) {
     Serial.println("Failed to initialize IMU!");
-    while (1);
+    while (1);  // Stay here if initialization failed
   }
   Serial.println("IMU Initialized.");
 
@@ -76,4 +78,3 @@ bool detectTremor(float filtered_value) {
   const float TREMOR_THRESHOLD = 1.0; // Define an appropriate threshold for tremor
   return (abs(filtered_value) > TREMOR_THRESHOLD);
 }
-
