@@ -49,7 +49,7 @@ disp(['F1 Score: ', num2str(f1_score)]);
 
 % Step 5: Plot and Save the results
 
-% Plot and save the raw and filtered synthetic data for comparison
+%% Plot and save the raw and filtered synthetic data for comparison
 figure;
 subplot(2, 1, 1);
 plot(t, syntheticData, 'DisplayName', 'Raw Synthetic Data');
@@ -59,6 +59,7 @@ title('Raw Synthetic Data with Multiple Frequencies');
 xlabel('Time (s)');
 ylabel('Amplitude');
 legend('show');
+ylim([-5 5]);
 grid on;
 hold off;
 %saveas(gcf, 'Raw_and_GroundTruth_SyntheticData.png'); % Save figure
@@ -69,10 +70,18 @@ title('Filtered Synthetic Data');
 xlabel('Time (s)');
 ylabel('Amplitude');
 legend('show');
+ylim([-5 5]);
 grid on;
+
+% Set the desired resolution (dpi)
+resolution = 300;
+filename = 'asdf';
+
+% Save the figure
+print(gcf, filename, '-dpng', ['-r', num2str(resolution)]);
 %saveas(gcf, 'Filtered_SyntheticData.png'); % Save figure
 
-% FFT Analysis: Compare the frequency content and save
+%% FFT Analysis: Compare the frequency content and save
 figure;
 subplot(2, 1, 1);
 fft_plot(syntheticData, fs, 'Raw Synthetic Data FFT');
