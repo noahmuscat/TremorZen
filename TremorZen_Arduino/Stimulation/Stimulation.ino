@@ -1,6 +1,4 @@
-#include "arduino_secrets.h"
-
-const int STIMULATION_PINS[] = {9, 10, 11, 12}; // Pins for the four electrodes
+const int STIMULATION_PINS[] = {9, 10}; // Pins for the four electrodes
 const float PULSE_WIDTH = 400;         // in microseconds
 const int STIMULATION_CURRENT = 10;    // in mA (you might need to adjust this)
 const int STIMULATION_FREQUENCY = 100; // Hz
@@ -11,7 +9,7 @@ void setup() {
   while (!Serial) {}
 
   // Set stimulation pins as output
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 2; i++) {
     pinMode(STIMULATION_PINS[i], OUTPUT);
   }
   Serial.println("Stimulation Setup Complete.");
@@ -28,12 +26,17 @@ void loop() {
   }
 }
 
-void applyPulse(int pin) {
+void applyPulse(int pin, int cycleCount) {
   int pwmValue = map(STIMULATION_CURRENT, 0, 20, 0, 255);
+  unsigned long timestamp = millis();
   analogWrite(pin, pwmValue); // Generate a PWM signal for the specified pulse width
   delayMicroseconds(PULSE_WIDTH);
   analogWrite(pin, 0); // Turn off the pin
-  Serial.print("Applied Pulse to Pin ");
+  Serial.print("Cycle ");
+  Serial.print(cycleCount);
+  Serial.print(" - Timestamp: ");
+  Serial.print(timestamp);
+  Serial.print(" - Applied Pulse to Pin ");
   Serial.print(pin);
   Serial.print(" with PWM value ");
   Serial.println(pwmValue);
@@ -42,10 +45,23 @@ void applyPulse(int pin) {
 void applyStimulus() {
   // Apply stimulation pulses for the duration of the stimulation phase
   unsigned long startTime = millis();
+  int pulseCount = 0;
+  int cycleCount = 0;
+
   while (millis() - startTime < STIMULATION_DURATION) {
-    for (int i = 0; i < 4; i++) {
-      applyPulse(STIMULATION_PINS[i]);
+    unsigned long pulseStartTime = millis();
+    
+    for (int i = 0; i < 2; i++) {
+      applyPulse(STIMULATION_PINS[i], ++cycleCount);
+      pulseCount++;
     }
-    delay(1000 / STIMULATION_FREQUENCY); // Delay to achieve desired frequency
+
+    while (millis() - pulseStartTime < (1000 / STIMULATION_FREQUENCY)) {
+      // Wait to maintain the correct frequency
+    }
   }
+  Serial.print("Total pulses applied: ");
+  Serial.println(pulseCount);
+  Serial.print("Expected pulses per pin: ");
+  Serial.println(STIMULATION_DURATION / (1000 / STIMULATION_FREQUENCY));
 }
