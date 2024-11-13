@@ -20,7 +20,7 @@ bool tremorDetected = false;
 unsigned long tremorDetectionTime = 0;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   while (!Serial) {}
 
   // Add a small delay before initializing IMU
@@ -45,10 +45,10 @@ void loop() {
     IMU.readAcceleration(ax, ay, az);
 
     // Print raw IMU data for analysis
-    Serial.print("RAW IMU: ");
-    Serial.print(ax); Serial.print(" ");
-    Serial.print(ay); Serial.print(" ");
-    Serial.println(az);
+    //Serial.print("RAW IMU: ");
+    //Serial.print(ax); Serial.print(" ");
+    //Serial.print(ay); Serial.print(" ");
+    //Serial.println(az);
 
     // Apply band-pass filter to x, y, and z-axis data
     float filtered_value_x, filtered_value_y, filtered_value_z;
@@ -61,8 +61,15 @@ void loop() {
                                          filtered_value_y * filtered_value_y +
                                          filtered_value_z * filtered_value_z);
 
-    // Print filtered data for analysis
-    Serial.print("Filtered data: ");
+    unsigned long currentMicros = micros();
+    //Serial.print("Filtered IMU data: ");
+    Serial.print(currentMicros); Serial.print(" ");
+    Serial.print(ax); Serial.print(" ");
+    Serial.print(ay); Serial.print(" ");
+    Serial.print(az); Serial.print(" ");
+    Serial.print(filtered_value_x); Serial.print(" ");
+    Serial.print(filtered_value_y); Serial.print(" ");
+    Serial.print(filtered_value_z); Serial.print(" ");
     Serial.println(combined_filtered_value);
 
     // Tremor detection
